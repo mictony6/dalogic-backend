@@ -21,6 +21,10 @@ app.set('port', port);
 
 var server = http.createServer(app);
 
+
+let queue = [];
+let readyPlayers = {};
+
 // Socket.io
 const socketIO = require("socket.io");
 const io = new socketIO.Server(server, {
@@ -29,10 +33,53 @@ const io = new socketIO.Server(server, {
   }
 });
 io.on('connection', (socket) => {
-  console.log('New client connected');
+  console.log('New client connected', socket.id);
   socket.on('disconnect', () => {
     console.log('Client disconnected');
+
+    // Remove user from queue when they disconnect
+    queue = queue.filter(user => user !== socket.id);
   });
+
+  socket.on("findMatch", () => {
+    // Add user to queue
+    queue.push(socket.id);
+
+    // If there are at least two users in the queue, match them
+    if (queue.length >= 2) {
+      const user1 = socket.id
+      const user2 = queue.shift();
+
+      // Create a unique room ID
+      const roomId = user1 + user2;
+
+      // Join both users to the room
+      io.sockets.sockets.get(user1).join(roomId);
+      io.sockets.sockets.get(user2).join(roomId);
+
+      readyPlayers[roomId] = 0;
+
+      matchDetails = {
+        roomId,
+        players: [user1, user2],
+        currentPlayerId: user1,
+        boardConfig: ""
+      }
+      // Emit a "matchFound" event to both users
+      io.to(roomId).emit('matchFound', matchDetails);
+    }
+  })
+
+
+  socket.on("playerReady", (roomId) => {
+    console.log("Player " + socket.id + " is ready at room" + roomId);
+    readyPlayers[roomId] = (readyPlayers[roomId] || 0) + 1;
+
+    if (readyPlayers[roomId] === 2) {
+      io.to(roomId).emit('startGame');
+    }
+
+  })
 })
 
 /**
