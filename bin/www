@@ -47,7 +47,7 @@ io.on('connection', (socket) => {
 
     // If there are at least two users in the queue, match them
     if (queue.length >= 2) {
-      const user1 = socket.id
+      const user1 = queue.shift();
       const user2 = queue.shift();
 
       // Create a unique room ID
