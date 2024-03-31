@@ -29,7 +29,7 @@ let readyPlayers = {};
 const socketIO = require("socket.io");
 const io = new socketIO.Server(server, {
   cors: {
-    origin: "http://localhost:8080"
+    origin: ["http://localhost:8080", "https://dalogic-client.onrender.com/"]
   }
 });
 io.on('connection', (socket) => {
@@ -115,7 +115,7 @@ io.on('connection', (socket) => {
 
   socket.on("playerTyping", (details) => {
     let roomId = details.roomId;
-    socket.to(roomId).emit('opponentTyping',details.value);
+    socket.to(roomId).emit('opponentTyping', details.value);
   })
 })
 
