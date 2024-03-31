@@ -63,7 +63,7 @@ io.on('connection', (socket) => {
         roomId,
         players: [user1, user2],
         currentPlayerId: user1,
-        boardConfig: ""
+        boardConfig: getBoardConfig()
       }
       // Emit a "matchFound" event to both users
       io.to(roomId).emit('matchFound', matchDetails);
@@ -148,4 +148,44 @@ function onListening() {
     ? 'pipe ' + addr
     : 'port ' + addr.port;
   debug('Listening on ' + bind);
+}
+
+
+const pieceDistrib = [3, 3, 3, 3, 2, 2, 1, 1, 1, 1, 0, 0]
+function getBoardConfig() {
+
+  // make an array representation of the board
+  // make the black tiles be "X" 
+  // black tiles are (row+col) % 2 == 1
+  // make the white tiles be any value from 0 to 3
+  // white tiles are (row+col) % 2 == 0
+  // make the white tiles be -1 if tile is white and (row > 3 || row < 4)
+
+
+  let grid = []
+
+
+  for (let row = 0; row < 8; row++) {
+    let currentRow = []
+    for (let col = 0; col < 8; col++) {
+
+      if ((row + col) % 2 == 1) {
+        // if tile is black
+        currentRow.push("X")
+      } else {
+        if (row < 3 || row > 4) {
+          let val = pieceDistrib[Math.floor(Math.random()*pieceDistrib.length)];
+          // if tile is white and not middle
+          currentRow.push(val)
+        } else {
+          // if tile is middle
+          currentRow.push(-1)
+        }
+      }
+
+    }
+    grid.push(currentRow)
+  }
+  console.log(grid)
+  return grid;
 }
