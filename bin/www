@@ -59,14 +59,23 @@ io.on('connection', (socket) => {
 
       readyPlayers[roomId] = 0;
 
-      matchDetails = {
+      matchDetails1 = {
         roomId,
         players: [user1, user2],
         currentPlayerId: user1,
         boardConfig: getBoardConfig()
       }
-      // Emit a "matchFound" event to both users
-      io.to(roomId).emit('matchFound', matchDetails);
+
+      mathDetails2 = {
+        roomId,
+        players: [user1, user2],
+        currentPlayerId: user1,
+        boardConfig: rotateBoard180(matchDetails1.boardConfig)
+      }
+
+      io.to(user1).emit('matchFound', matchDetails1);
+      io.to(user2).emit('matchFound', mathDetails2);
+      
     }
   })
 
@@ -188,4 +197,17 @@ function getBoardConfig() {
   }
   console.log(grid)
   return grid;
+}
+
+
+function rotateBoard180(boardConfig){
+  let newBoardConfig = []
+  for (let row = 7; row >= 0; row--) {
+    let currentRow = []
+    for (let col = 7; col >= 0; col--) {
+      currentRow.push(boardConfig[row][col])
+    }
+    newBoardConfig.push(currentRow)
+  }
+  return newBoardConfig;
 }
