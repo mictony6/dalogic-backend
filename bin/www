@@ -75,7 +75,7 @@ io.on('connection', (socket) => {
 
       io.to(user1).emit('matchFound', matchDetails1);
       io.to(user2).emit('matchFound', mathDetails2);
-      
+
     }
   })
 
@@ -84,10 +84,38 @@ io.on('connection', (socket) => {
     console.log("Player " + socket.id + " is ready at room" + roomId);
     readyPlayers[roomId] = (readyPlayers[roomId] || 0) + 1;
 
+    // 
     if (readyPlayers[roomId] === 2) {
       io.to(roomId).emit('startGame');
     }
 
+  })
+
+
+  socket.on("playerMove", (details) => {
+    let moveHash = details.move;
+    // send the move to the opponent rotated
+    let rotatedHash = moveHash.split("-");
+
+    rotatedHash[0] = 7 - rotatedHash[0];
+    rotatedHash[1] = 7 - rotatedHash[1];
+    rotatedHash[2] = 7 - rotatedHash[2];
+    rotatedHash[3] = 7 - rotatedHash[3];
+    rotatedHash = rotatedHash.join("-");
+    socket.to(details.roomId).emit('opponentMove', rotatedHash);
+  })
+
+  socket.on("playerAnswer", (details) => {
+    let answer = details.answer;
+    let roomId = details.roomId;
+
+    socket.to(roomId).emit('opponentAnswer', answer);
+  })
+
+
+  socket.on("playerTyping", (details) => {
+    let roomId = details.roomId;
+    socket.to(roomId).emit('opponentTyping',details.value);
   })
 })
 
@@ -183,7 +211,7 @@ function getBoardConfig() {
         currentRow.push("X")
       } else {
         if (row < 3 || row > 4) {
-          let val = pieceDistrib[Math.floor(Math.random()*pieceDistrib.length)];
+          let val = pieceDistrib[Math.floor(Math.random() * pieceDistrib.length)];
           // if tile is white and not middle
           currentRow.push(val)
         } else {
@@ -200,7 +228,7 @@ function getBoardConfig() {
 }
 
 
-function rotateBoard180(boardConfig){
+function rotateBoard180(boardConfig) {
   let newBoardConfig = []
   for (let row = 7; row >= 0; row--) {
     let currentRow = []
