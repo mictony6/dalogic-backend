@@ -39,9 +39,16 @@ io.on('connection', (socket) => {
 
     // Remove user from queue when they disconnect
     queue = queue.filter(user => user !== socket.id);
+
+    // If the user was in a room, remove it from readyPlayers
+    if (currentRoom) {
+      delete readyPlayers[currentRoom];
+    }
+    
   });
 
   socket.on("findMatch", () => {
+    currentRoom = null;
     // Add user to queue
     queue.push(socket.id);
 
@@ -56,6 +63,11 @@ io.on('connection', (socket) => {
       // Join both users to the room
       io.sockets.sockets.get(user1).join(roomId);
       io.sockets.sockets.get(user2).join(roomId);
+
+      // Update the current room for each user
+      if (socket.id === user1 || socket.id === user2) {
+        currentRoom = roomId;
+      }
 
       readyPlayers[roomId] = 0;
 
