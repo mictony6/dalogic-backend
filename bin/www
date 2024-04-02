@@ -105,10 +105,6 @@ io.on('connection', (socket) => {
       io.sockets.sockets.get(user1).join(roomId);
       io.sockets.sockets.get(user2).join(roomId);
 
-      // Update the current room for each user
-      if (socket.id === user1 || socket.id === user2) {
-        playerToRoom[playerID] = roomId;
-      }
 
       readyPlayers[roomId] = 0;
 
@@ -133,8 +129,11 @@ io.on('connection', (socket) => {
   })
 
 
-  socket.on("playerReady", (roomId) => {
-    console.log("Player " + socket.id + " is ready at room" + roomId);
+  socket.on("playerReady", (data) => {
+
+    let roomId = data.roomId;
+    playerToRoom[data.playerID] = roomId;
+    console.log("Player " + data.playerID + " is ready at room" + roomId);
     readyPlayers[roomId] = (readyPlayers[roomId] || 0) + 1;
 
     // 
