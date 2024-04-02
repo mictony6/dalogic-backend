@@ -42,11 +42,7 @@ io.on('connection', (socket) => {
   let currentRoom = null;
 
   socket.on('disconnect', () => {
-    console.log('Client disconnected');
-
-    // Remove user from queue when they disconnect
-    queue = queue.filter(user => user !== socket.id);
-
+    console.log('Client '+socket.id+'disconnected at' + currentRoom);
     // If the user was in a room wait for 60 seconds before removing the room
     if (currentRoom) {
       disconnectedRooms[currentRoom] = setTimeout(() =>{
@@ -60,6 +56,9 @@ io.on('connection', (socket) => {
           }
         });
       }, 60000);
+    } else {
+      // Remove user from queue when they disconnect
+      queue = queue.filter(user => user !== socket.id);
     }
     
   });
