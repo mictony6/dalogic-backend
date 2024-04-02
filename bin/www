@@ -276,7 +276,7 @@ function getBoardConfig() {
     }
     grid.push(currentRow)
   }
-  console.log(grid)
+
   return grid;
 }
 
