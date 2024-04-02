@@ -38,6 +38,7 @@ const io = new socketIO.Server(server, {
 io.on('connection', (socket) => {
   console.log('New client connected', socket.id);
   let currentRoom = playerToRoom[socket.id] || null;
+  console.log("Current room", currentRoom);
   if (currentRoom && disconnectedRooms[currentRoom]){
     clearTimeout(disconnectedRooms[currentRoom]);
     delete disconnectedRooms[currentRoom];
@@ -63,7 +64,7 @@ io.on('connection', (socket) => {
   socket.on("findMatch", () => {
 
     // If the user is already in a room, do nothing
-    if (currentRoom) {
+    if (playerToRoom[socket.id]) {
       return;
     }
     // Add user to queue
