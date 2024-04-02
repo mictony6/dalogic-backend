@@ -39,138 +39,13 @@ const io = new socketIO.Server(server, {
 
 io.on('connection', (socket) => {
   console.log('New client connected', socket.id);
-
-
-
-  socket.on('disconnect', () => {
-    let currentRoom = playerToRoom[socketToPlayer[socket.id]];
-    console.log('Client '+socket.id+'disconnected at' + currentRoom);
-    // If the user was in a room wait for 60 seconds before removing the room
-    if (currentRoom) {
-      disconnectedRooms[currentRoom] = setTimeout(() =>{
-        console.log("player disconnected fully")
-        delete readyPlayers[currentRoom];
-        delete disconnectedRooms[currentRoom];
-
-        Object.keys(playerToRoom).forEach(key => {
-          if (playerToRoom[key] === currentRoom) {
-            playerToRoom[key] = null;
-          }
-        });
-      }, 60000);
-    } else {
-      // Remove user from queue when they disconnect
-      queue = queue.filter(user => user !== socket.id);
-    }
-    
-  });
-
-  socket.on("registerPlayer", (playerID) => {
-    // Register the player
-    socketToPlayer[socket.id] = playerID;
-    // If the user is already in a room, do nothing
-    let currentRoom = playerToRoom[playerID] ;
-    console.log("Current room is " + currentRoom)
-    log("disconnected rooms", disconnectedRooms[currentRoom]);
-    if (currentRoom && disconnectedRooms[currentRoom]){
-      console.log("Resuming game for player " + playerID);
-      clearTimeout(disconnectedRooms[currentRoom]);
-      delete disconnectedRooms[currentRoom];
-      socket.emit("resumeGame");
-    }else {
-      console.log("Player " + playerID + " registered")
-      playerToRoom[playerID] = null;
-      socket.emit("playerRegistered", playerID);
-    }
-  })
-
-  socket.on("findMatch", (playerID) => {
-
-    // If the user is already in a room, do nothing
-    if (playerToRoom[playerID]) {
-      return;
-    }
-    // Add user to queue
-    queue.push(socket.id);
-
-    // If there are at least two users in the queue, match them
-    let mathDetails2;
-    let matchDetails1;
-    if (queue.length >= 2) {
-      const user1 = queue.shift();
-      const user2 = queue.shift();
-
-      // Create a unique room ID
-      const roomId = user1 + user2;
-
-      // Join both users to the room
-      io.sockets.sockets.get(user1).join(roomId);
-      io.sockets.sockets.get(user2).join(roomId);
-
-
-      readyPlayers[roomId] = 0;
-
-      matchDetails1 = {
-        roomId,
-        players: [user1, user2],
-        isTurn: false,
-        boardConfig: getBoardConfig()
-      }
-
-      mathDetails2 = {
-        roomId,
-        players: [user1, user2],
-        isTurn: true,
-        boardConfig: rotateBoard180(matchDetails1.boardConfig)
-      }
-
-      io.to(user1).emit('matchFound', matchDetails1);
-      io.to(user2).emit('matchFound', mathDetails2);
-
-    }
-  })
-
-
-  socket.on("playerReady", (data) => {
-
-    let roomId = data.roomId;
-    playerToRoom[data.playerID] = roomId;
-    console.log("Player " + data.playerID + " is ready at room" + roomId);
-    readyPlayers[roomId] = (readyPlayers[roomId] || 0) + 1;
-
-    // 
-    if (readyPlayers[roomId] === 2) {
-      io.to(roomId).emit('startGame');
-    }
-
-  })
-
-
-  socket.on("playerMove", (details) => {
-    let moveHash = details.move;
-    // send the move to the opponent rotated
-    let rotatedHash = moveHash.split("-");
-
-    rotatedHash[0] = 7 - rotatedHash[0];
-    rotatedHash[1] = 7 - rotatedHash[1];
-    rotatedHash[2] = 7 - rotatedHash[2];
-    rotatedHash[3] = 7 - rotatedHash[3];
-    rotatedHash = rotatedHash.join("-");
-    socket.to(details.roomId).emit('opponentMove', rotatedHash);
-  })
-
-  socket.on("playerAnswer", (details) => {
-    let answer = details.answer;
-    let roomId = details.roomId;
-
-    socket.to(roomId).emit('opponentAnswer', answer);
-  })
-
-
-  socket.on("playerTyping", (details) => {
-    let roomId = details.roomId;
-    socket.to(roomId).emit('opponentTyping', details.value);
-  })
+  socket.on('disconnect', handlePlayerDisconnect.bind(socket));
+  socket.on("registerPlayer", handleRegisterPlayer.bind(socket));
+  socket.on("findMatch", handleFindMatch.bind(socket))
+  socket.on("playerReady", handlePlayerReady.bind(socket))
+  socket.on("playerMove", handlePlayerMove.bind(socket))
+  socket.on("playerAnswer", handlePlayerAnswer.bind(socket))
+  socket.on("playerTyping", handlePlayerTyping.bind(socket))
 })
 
 /**
@@ -244,23 +119,13 @@ function onListening() {
 
 const pieceDistrib = [3, 3, 3, 3, 2, 2, 1, 1, 1, 1, 0, 0]
 function getBoardConfig() {
-
-  // make an array representation of the board
-  // make the black tiles be "X" 
-  // black tiles are (row+col) % 2 == 1
-  // make the white tiles be any value from 0 to 3
-  // white tiles are (row+col) % 2 == 0
-  // make the white tiles be -1 if tile is white and (row > 3 || row < 4)
-
-
   let grid = []
-
 
   for (let row = 0; row < 8; row++) {
     let currentRow = []
     for (let col = 0; col < 8; col++) {
 
-      if ((row + col) % 2 == 1) {
+      if ((row + col) % 2 === 1) {
         // if tile is black
         currentRow.push("X")
       } else {
@@ -292,4 +157,135 @@ function rotateBoard180(boardConfig) {
     newBoardConfig.push(currentRow)
   }
   return newBoardConfig;
+}
+
+function handleFindMatch(playerID){
+
+  // If the user is already in a room, do nothing
+  if (playerToRoom[playerID]) {
+    return;
+  }
+  // Add user to queue
+  queue.push(this.id);
+
+  // If there are at least two users in the queue, match them
+  let mathDetails2;
+  let matchDetails1;
+  if (queue.length >= 2) {
+    const user1 = queue.shift();
+    const user2 = queue.shift();
+
+    // Create a unique room ID
+    const roomId = user1 + user2;
+
+    // Join both users to the room
+    io.sockets.sockets.get(user1).join(roomId);
+    io.sockets.sockets.get(user2).join(roomId);
+
+
+    readyPlayers[roomId] = 0;
+
+    matchDetails1 = {
+      roomId,
+      players: [user1, user2],
+      isTurn: false,
+      boardConfig: getBoardConfig()
+    }
+
+    mathDetails2 = {
+      roomId,
+      players: [user1, user2],
+      isTurn: true,
+      boardConfig: rotateBoard180(matchDetails1.boardConfig)
+    }
+
+    io.to(user1).emit('matchFound', matchDetails1);
+    io.to(user2).emit('matchFound', mathDetails2);
+
+  }
+}
+
+function handleRegisterPlayer(playerID) {
+  // Register the player
+  socketToPlayer[this.id] = playerID;
+  // If the user is already in a room, do nothing
+  let currentRoom = playerToRoom[playerID] ;
+  console.log("Current room is " + currentRoom)
+  log("disconnected rooms", disconnectedRooms[currentRoom]);
+  if (currentRoom && disconnectedRooms[currentRoom]){
+    console.log("Resuming game for player " + playerID);
+    clearTimeout(disconnectedRooms[currentRoom]);
+    delete disconnectedRooms[currentRoom];
+    this.emit("resumeGame");
+  }else {
+    console.log("Player " + playerID + " registered")
+    playerToRoom[playerID] = null;
+    this.emit("playerRegistered", playerID);
+  }
+}
+
+function handlePlayerReady (data) {
+
+  let roomId = data.roomId;
+  playerToRoom[data.playerID] = roomId;
+  console.log("Player " + data.playerID + " is ready at room" + roomId);
+  readyPlayers[roomId] = (readyPlayers[roomId] || 0) + 1;
+
+  //
+  if (readyPlayers[roomId] === 2) {
+    io.to(roomId).emit('startGame');
+  }
+}
+
+function handlePlayerMove(details)  {
+  let moveHash = details.move;
+  // send the move to the opponent rotated
+  let rotatedHash = moveHash.split("-");
+
+  rotatedHash[0] = 7 - rotatedHash[0];
+  rotatedHash[1] = 7 - rotatedHash[1];
+  rotatedHash[2] = 7 - rotatedHash[2];
+  rotatedHash[3] = 7 - rotatedHash[3];
+  rotatedHash = rotatedHash.join("-");
+  this.to(details.roomId).emit('opponentMove', rotatedHash);
+}
+
+function handlePlayerDisconnect() {
+  let currentRoom = playerToRoom[socketToPlayer[this.id]];
+  readyPlayers[currentRoom] = readyPlayers[currentRoom]-1;
+
+  if (readyPlayers[currentRoom] === 0) {
+    return;
+  }
+  console.log('Client '+this.id+'disconnected at' + currentRoom);
+  // If the user was in a room wait for 60 seconds before removing the room
+  if (currentRoom) {
+    disconnectedRooms[currentRoom] = setTimeout(() =>{
+      console.log("player disconnected fully")
+      delete readyPlayers[currentRoom];
+      delete disconnectedRooms[currentRoom];
+
+      Object.keys(playerToRoom).forEach(key => {
+        if (playerToRoom[key] === currentRoom) {
+          playerToRoom[key] = null;
+        }
+      });
+    }, 60000);
+  } else {
+    // Remove user from queue when they disconnect
+    queue = queue.filter(user => user !== this.id);
+  }
+
+}
+
+function handlePlayerAnswer(details) {
+  let answer = details.answer;
+  let roomId = details.roomId;
+
+  this.to(roomId).emit('opponentAnswer', answer);
+}
+
+function handlePlayerTyping (details) {
+  let roomId = details.roomId;
+  this.to(roomId).emit('opponentTyping', details.value);
 }
