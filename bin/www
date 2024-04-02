@@ -255,22 +255,16 @@ function handlePlayerDisconnect() {
   readyPlayers[currentRoom] = readyPlayers[currentRoom]-1;
 
   if (readyPlayers[currentRoom] === 0) {
-    return;
+    clearTimeout(disconnectedRooms[currentRoom]);
+    fullyRemove(currentRoom);
+  } else if (readyPlayers[currentRoom] === 1) {
+    // notify the opponent that the player disconnected
+    this.to(currentRoom).emit('opponentDisconnected');
   }
   console.log('Client '+this.id+'disconnected at' + currentRoom);
   // If the user was in a room wait for 60 seconds before removing the room
   if (currentRoom) {
-    disconnectedRooms[currentRoom] = setTimeout(() =>{
-      console.log("player disconnected fully")
-      delete readyPlayers[currentRoom];
-      delete disconnectedRooms[currentRoom];
-
-      Object.keys(playerToRoom).forEach(key => {
-        if (playerToRoom[key] === currentRoom) {
-          playerToRoom[key] = null;
-        }
-      });
-    }, 60000);
+    disconnectedRooms[currentRoom] = setTimeout(fullyRemove, 60000, currentRoom);
   } else {
     // Remove user from queue when they disconnect
     queue = queue.filter(user => user !== this.id);
@@ -288,4 +282,18 @@ function handlePlayerAnswer(details) {
 function handlePlayerTyping (details) {
   let roomId = details.roomId;
   this.to(roomId).emit('opponentTyping', details.value);
+}
+
+function fullyRemove (currentRoom) {
+  console.log("player disconnected fully")
+  delete readyPlayers[currentRoom];
+  delete disconnectedRooms[currentRoom];
+
+  Object.keys(playerToRoom).forEach(key => {
+    if (playerToRoom[key] === currentRoom) {
+      playerToRoom[key] = null;
+    }
+  });
+
+
 }
