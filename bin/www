@@ -49,6 +49,7 @@ io.on('connection', (socket) => {
     // If the user was in a room wait for 60 seconds before removing the room
     if (currentRoom) {
       disconnectedRooms[currentRoom] = setTimeout(() =>{
+        console.log("player disconnected fully")
         delete readyPlayers[currentRoom];
         delete disconnectedRooms[currentRoom];
 
