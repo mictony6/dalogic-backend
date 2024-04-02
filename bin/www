@@ -26,6 +26,7 @@ let queue = [];
 let readyPlayers = {};
 let disconnectedRooms = {};
 let playerToRoom = {};
+let socketToPlayer = {};
 
 // Socket.io
 const socketIO = require("socket.io");
@@ -39,9 +40,10 @@ const io = new socketIO.Server(server, {
 io.on('connection', (socket) => {
   console.log('New client connected', socket.id);
 
-  let currentRoom = null;
+
 
   socket.on('disconnect', () => {
+    let currentRoom = playerToRoom[socketToPlayer[socket.id]];
     console.log('Client '+socket.id+'disconnected at' + currentRoom);
     // If the user was in a room wait for 60 seconds before removing the room
     if (currentRoom) {
@@ -64,9 +66,10 @@ io.on('connection', (socket) => {
   });
 
   socket.on("registerPlayer", (playerID) => {
-
+    // Register the player
+    socketToPlayer[socket.id] = playerID;
     // If the user is already in a room, do nothing
-    currentRoom = playerToRoom[playerID] ;
+    let currentRoom = playerToRoom[playerID] ;
     console.log("Current room is " + currentRoom)
     log("disconnected rooms", disconnectedRooms[currentRoom]);
     if (currentRoom && disconnectedRooms[currentRoom]){
