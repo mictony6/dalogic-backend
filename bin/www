@@ -212,12 +212,17 @@ function handleRegisterPlayer(playerID) {
   let currentRoom = playerToRoom[playerID] ;
   console.log("Current room is " + currentRoom)
   log("disconnected rooms", disconnectedRooms[currentRoom]);
+
   if (currentRoom && disconnectedRooms[currentRoom]){
+
     console.log("Resuming game for player " + playerID);
     clearTimeout(disconnectedRooms[currentRoom]);
+    // add back the player to the room
+    io.sockets.sockets.get(this.id).join(currentRoom);
     delete disconnectedRooms[currentRoom];
     this.emit("resumeGame");
-  }else {
+  } else {
+
     console.log("Player " + playerID + " registered")
     playerToRoom[playerID] = null;
     this.emit("playerRegistered", playerID);
@@ -255,8 +260,7 @@ function handlePlayerDisconnect() {
   readyPlayers[currentRoom] = readyPlayers[currentRoom]-1;
 
   if (readyPlayers[currentRoom] === 0) {
-    clearTimeout(disconnectedRooms[currentRoom]);
-    fullyRemove(currentRoom);
+    return;
   } else if (readyPlayers[currentRoom] === 1) {
     // notify the opponent that the player disconnected
     this.to(currentRoom).emit('opponentDisconnected');
