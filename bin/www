@@ -29,6 +29,7 @@ let playerToRoom = {};
 
 // Socket.io
 const socketIO = require("socket.io");
+const {log} = require("debug");
 const io = new socketIO.Server(server, {
   cors: {
     origin: "*"
@@ -66,7 +67,9 @@ io.on('connection', (socket) => {
   socket.on("registerPlayer", (playerID) => {
 
     // If the user is already in a room, do nothing
-    currentRoom = playerToRoom[playerID] || null;
+    currentRoom = playerToRoom[playerID] ;
+    console.log("Current room is " + currentRoom)
+    log("disconnected rooms", disconnectedRooms[currentRoom]);
     if (currentRoom && disconnectedRooms[currentRoom]){
       console.log("Resuming game for player " + playerID);
       clearTimeout(disconnectedRooms[currentRoom]);
