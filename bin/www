@@ -37,12 +37,8 @@ const io = new socketIO.Server(server, {
 
 io.on('connection', (socket) => {
   console.log('New client connected', socket.id);
-  let currentRoom = playerToRoom[socket.id] || null;
-  console.log("Current room", currentRoom);
-  if (currentRoom && disconnectedRooms[currentRoom]){
-    clearTimeout(disconnectedRooms[currentRoom]);
-    delete disconnectedRooms[currentRoom];
-  }
+
+  let currentRoom = null;
 
   socket.on('disconnect', () => {
     console.log('Client disconnected');
@@ -55,16 +51,37 @@ io.on('connection', (socket) => {
       disconnectedRooms[currentRoom] = setTimeout(() =>{
         delete readyPlayers[currentRoom];
         delete disconnectedRooms[currentRoom];
-        playerToRoom[socket.id] = null;
+
+        Object.keys(playerToRoom).forEach(key => {
+          if (playerToRoom[key] === currentRoom) {
+            playerToRoom[key] = null;
+          }
+        });
       }, 60000);
     }
     
   });
 
-  socket.on("findMatch", () => {
+  socket.on("registerPlayer", (playerID) => {
 
     // If the user is already in a room, do nothing
-    if (playerToRoom[socket.id]) {
+    currentRoom = playerToRoom[playerID] || null;
+    if (currentRoom && disconnectedRooms[currentRoom]){
+      console.log("Resuming game for player " + playerID);
+      clearTimeout(disconnectedRooms[currentRoom]);
+      delete disconnectedRooms[currentRoom];
+      socket.emit("resumeGame");
+    }else {
+      console.log("Player " + playerID + " registered")
+      playerToRoom[playerID] = null;
+      socket.emit("playerRegistered", playerID);
+    }
+  })
+
+  socket.on("findMatch", (playerID) => {
+
+    // If the user is already in a room, do nothing
+    if (playerToRoom[playerID]) {
       return;
     }
     // Add user to queue
@@ -86,7 +103,7 @@ io.on('connection', (socket) => {
 
       // Update the current room for each user
       if (socket.id === user1 || socket.id === user2) {
-        playerToRoom[socket.id] = roomId;
+        playerToRoom[playerID] = roomId;
       }
 
       readyPlayers[roomId] = 0;
@@ -94,14 +111,14 @@ io.on('connection', (socket) => {
       matchDetails1 = {
         roomId,
         players: [user1, user2],
-        currentPlayerId: user1,
+        isTurn: false,
         boardConfig: getBoardConfig()
       }
 
       mathDetails2 = {
         roomId,
         players: [user1, user2],
-        currentPlayerId: user1,
+        isTurn: true,
         boardConfig: rotateBoard180(matchDetails1.boardConfig)
       }
 
