@@ -24,6 +24,8 @@ var server = http.createServer(app);
 
 let queue = [];
 let readyPlayers = {};
+let disconnectedRooms = {};
+let playerToRoom = {};
 
 // Socket.io
 const socketIO = require("socket.io");
@@ -32,27 +34,44 @@ const io = new socketIO.Server(server, {
     origin: "*"
   }
 });
+
 io.on('connection', (socket) => {
   console.log('New client connected', socket.id);
+  let currentRoom = playerToRoom[socket.id] || null;
+  if (currentRoom && disconnectedRooms[currentRoom]){
+    clearTimeout(disconnectedRooms[currentRoom]);
+    delete disconnectedRooms[currentRoom];
+  }
+
   socket.on('disconnect', () => {
     console.log('Client disconnected');
 
     // Remove user from queue when they disconnect
     queue = queue.filter(user => user !== socket.id);
 
-    // If the user was in a room, remove it from readyPlayers
+    // If the user was in a room wait for 60 seconds before removing the room
     if (currentRoom) {
-      delete readyPlayers[currentRoom];
+      disconnectedRooms[currentRoom] = setTimeout(() =>{
+        delete readyPlayers[currentRoom];
+        delete disconnectedRooms[currentRoom];
+        playerToRoom[socket.id] = null;
+      }, 60000);
     }
     
   });
 
   socket.on("findMatch", () => {
-    currentRoom = null;
+
+    // If the user is already in a room, do nothing
+    if (currentRoom) {
+      return;
+    }
     // Add user to queue
     queue.push(socket.id);
 
     // If there are at least two users in the queue, match them
+    let mathDetails2;
+    let matchDetails1;
     if (queue.length >= 2) {
       const user1 = queue.shift();
       const user2 = queue.shift();
@@ -66,7 +85,7 @@ io.on('connection', (socket) => {
 
       // Update the current room for each user
       if (socket.id === user1 || socket.id === user2) {
-        currentRoom = roomId;
+        playerToRoom[socket.id] = roomId;
       }
 
       readyPlayers[roomId] = 0;
