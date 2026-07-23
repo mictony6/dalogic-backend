@@ -165,22 +165,36 @@ function handleFindMatch(playerID){
   if (playerToRoom[playerID]) {
     return;
   }
+  // Avoid queueing the same socket twice while it waits for a match
+  if (queue.includes(this.id)) {
+    return;
+  }
   // Add user to queue
   queue.push(this.id);
 
   // If there are at least two users in the queue, match them
-  let mathDetails2;
+  let matchDetails2;
   let matchDetails1;
   if (queue.length >= 2) {
     const user1 = queue.shift();
     const user2 = queue.shift();
 
+    const socket1 = io.sockets.sockets.get(user1);
+    const socket2 = io.sockets.sockets.get(user2);
+
+    // If either socket disconnected while waiting in queue, requeue whoever is still around
+    if (!socket1 || !socket2) {
+      if (socket1) queue.unshift(user1);
+      if (socket2) queue.unshift(user2);
+      return;
+    }
+
     // Create a unique room ID
-    const roomId = user1 + user2;
+    const roomId = `${user1}:${user2}`;
 
     // Join both users to the room
-    io.sockets.sockets.get(user1).join(roomId);
-    io.sockets.sockets.get(user2).join(roomId);
+    socket1.join(roomId);
+    socket2.join(roomId);
 
 
     readyPlayers[roomId] = 0;
@@ -192,7 +206,7 @@ function handleFindMatch(playerID){
       boardConfig: getBoardConfig()
     }
 
-    mathDetails2 = {
+    matchDetails2 = {
       roomId,
       players: [user1, user2],
       isTurn: true,
@@ -200,7 +214,7 @@ function handleFindMatch(playerID){
     }
 
     io.to(user1).emit('matchFound', matchDetails1);
-    io.to(user2).emit('matchFound', mathDetails2);
+    io.to(user2).emit('matchFound', matchDetails2);
 
   }
 }
@@ -220,6 +234,9 @@ function handleRegisterPlayer(playerID) {
     // add back the player to the room
     io.sockets.sockets.get(this.id).join(currentRoom);
     delete disconnectedRooms[currentRoom];
+    // restore the ready count so a future disconnect is handled correctly
+    readyPlayers[currentRoom] = (readyPlayers[currentRoom] || 0) + 1;
+    this.to(currentRoom).emit("opponentReconnected");
     this.emit("resumeGame");
   } else {
 
@@ -257,23 +274,27 @@ function handlePlayerMove(details)  {
 
 function handlePlayerDisconnect() {
   let currentRoom = playerToRoom[socketToPlayer[this.id]];
-  readyPlayers[currentRoom] = readyPlayers[currentRoom]-1;
+  delete socketToPlayer[this.id];
 
-  if (readyPlayers[currentRoom] === 0) {
-    return;
-  } else if (readyPlayers[currentRoom] === 1) {
-    // notify the opponent that the player disconnected
-    this.to(currentRoom).emit('opponentDisconnected');
-  }
-  console.log('Client '+this.id+'disconnected at' + currentRoom);
-  // If the user was in a room wait for 60 seconds before removing the room
-  if (currentRoom) {
-    disconnectedRooms[currentRoom] = setTimeout(fullyRemove, 60000, currentRoom);
-  } else {
+  if (!currentRoom) {
     // Remove user from queue when they disconnect
     queue = queue.filter(user => user !== this.id);
+    return;
   }
 
+  readyPlayers[currentRoom] = (readyPlayers[currentRoom] || 0) - 1;
+  console.log('Client ' + this.id + ' disconnected at ' + currentRoom);
+
+  if (readyPlayers[currentRoom] <= 0) {
+    // Both players are gone, clean up immediately instead of leaking the room
+    fullyRemove(currentRoom);
+    return;
+  }
+
+  // notify the remaining opponent and wait 60 seconds before removing the
+  // room, in case this player reconnects
+  this.to(currentRoom).emit('opponentDisconnected');
+  disconnectedRooms[currentRoom] = setTimeout(fullyRemove, 60000, currentRoom);
 }
 
 function handlePlayerAnswer(details) {
